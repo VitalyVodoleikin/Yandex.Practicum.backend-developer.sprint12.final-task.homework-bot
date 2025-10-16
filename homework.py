@@ -2,6 +2,7 @@ from http import HTTPStatus
 import json
 import logging
 import os
+import sys
 import time
 
 import requests
@@ -83,6 +84,13 @@ def get_api_answer(endpoint):
 
 def check_response(response):
     """Проверка данных запроса."""
+    if not isinstance(response, dict):
+        raise TypeError('Ответ API не имеет структуры словаря')
+    if 'homeworks' not in response or not isinstance(
+        response['homeworks'],
+        list
+    ):
+        raise TypeError('Данные под ключом "homeworks" не являются списком')
     if response.get('homeworks') is None:
         msg = ('Получены некорректные данные.')
         logger.error(msg)
@@ -122,7 +130,7 @@ def send_message(bot, msg):
     """Отправка сообщения в Телеграм."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, msg)
-        logger.info(f'В Telegram отправлено сообщение: {msg}')
+        logger.debug(f'В Telegram отправлено сообщение: {msg}')
     except TelegramMsgError as err:
         logger.error(f'Сообщение в Telegram не отправлено: {err}')
 
@@ -130,7 +138,7 @@ def send_message(bot, msg):
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        exit()
+        sys.exit()
     # Создаем объект класса бота
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
