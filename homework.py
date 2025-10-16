@@ -1,5 +1,18 @@
+from http import HTTPStatus
+import json
+import logging
 import os
+import time
+
+import requests
+
+from exceptions import (
+    EmptyDataError, RequestExceptError,
+    TelegramMsgError, UnknownStatusError,
+    UnsuccessfulHTTPStatusCodeError)
+from telebot import TeleBot
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -7,6 +20,11 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('YANDEX_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+
+env_variables = {
+    'practicum_token': PRACTICUM_TOKEN,
+    'telegram_token': TELEGRAM_TOKEN,
+    'telegram_chat_id': TELEGRAM_CHAT_ID}
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -16,52 +34,125 @@ HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
-}
+    'rejected': 'Работа проверена: у ревьюера есть замечания.'}
 
 
-def check_tokens():
-    ...
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG,
+    filename='bot_check_homework_logs.log',
+    filemode='a',
+    encoding='utf-8',)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler())
 
 
-def send_message(bot, message):
-    ...
+def check_tokens(tokens_availability=True):
+    """Доступность токенов."""
+    for name, value in env_variables.items():
+        if value is None:
+            tokens_availability = False
+            logger.critical(
+                f'Не указана переменная {name}]')
+    return tokens_availability
 
 
-def get_api_answer(timestamp):
-    ...
+def get_api_answer(endpoint):
+    """Отправка запроса и получение данных с API."""
+    current_timestamp = int(time.time())
+    headers = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
+    payload = {'from_date': current_timestamp}
+    try:
+        response = requests.get(endpoint, headers=headers, params=payload)
+        if response.status_code != HTTPStatus.OK:
+            msg = 'Нет доступа к эндпоинту.'
+            logger.error(msg)
+            raise UnsuccessfulHTTPStatusCodeError(msg)
+        return response.json()
+    except requests.exceptions.RequestException as err:
+        msg = f'Код ответа API: {err}'
+        logger.error(msg)
+        raise RequestExceptError(msg)
+    except json.JSONDecodeError as err:
+        msg = f'Код ответа API: {err}'
+        logger.error(msg)
+        raise json.JSONDecodeError(msg)
 
 
 def check_response(response):
-    ...
+    """Проверка данных запроса."""
+    if response.get('homeworks') is None:
+        msg = ('Получены некорректные данные.')
+        logger.error(msg)
+        raise EmptyDataError(msg)
+    if response['homeworks'] == []:
+        return {}
+    status = response['homeworks'][0].get('status')
+    if status not in HOMEWORK_VERDICTS:
+        msg = f'Неизвестный статус проверки работы: {status}'
+        logger.error(msg)
+        raise UnknownStatusError(msg)
+    return response['homeworks'][0]
 
 
 def parse_status(homework):
-    ...
-
+    """Анализируем статус если изменился."""
+    status = homework.get('status')
+    homework_name = homework.get('homework_name')
+    if status is None:
+        msg = f'Ошибка значения status: {status}.'
+        logger.error(msg)
+        raise UnknownStatusError(msg)
+    if homework_name is None:
+        msg = f'Ошибка значения homework_name: {homework_name}.'
+        logger.error(msg)
+        raise UnknownStatusError(msg)
+    try:
+        verdict = HOMEWORK_VERDICTS[status]
+    except KeyError:
+        msg = f'Неизвестный статус проверки: {status}.'
+        logger.error(msg)
+        raise UnknownStatusError(msg)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+
+
+def send_message(bot, msg):
+    """Отправка сообщения в Телеграм."""
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, msg)
+        logger.info(f'В Telegram отправлено сообщение: {msg}')
+    except TelegramMsgError as err:
+        logger.error(f'Сообщение в Telegram не отправлено: {err}')
 
 
 def main():
     """Основная логика работы бота."""
-
-    ...
-
+    if not check_tokens():
+        exit()
     # Создаем объект класса бота
-    bot = ...
+    bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-
-    ...
-
+    homework_status = 'reviewing'
+    error_status = True
     while True:
         try:
-
-            ...
-
+            response = get_api_answer(ENDPOINT, timestamp)
+            homework = check_response(response)
+            if homework and homework_status != homework['status']:
+                message = parse_status(homework)
+                send_message(bot, message)
+                homework_status = homework['status']
+            logger.info(
+                'Статус проверки не изменился. '
+                f'Повторная проверка через {RETRY_PERIOD / 60} минут.')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            ...
-        ...
+            if error_status:
+                error_status = False
+                send_message(bot, message)
+        time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
