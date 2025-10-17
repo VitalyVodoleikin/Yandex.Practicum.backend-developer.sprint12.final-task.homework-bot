@@ -130,22 +130,24 @@ def send_message(bot, msg):
 
 def check_tokens():
     """Доступность токенов."""
-    for name, value in env_variables.items():
-        if value is None:
-            msg = f'Не указана переменная {name}.'
-            logger.critical(msg)
-            # return False
-            raise EnvVarsError(msg)
-    return True
+    msg = ('Не указана переменная окружения:')
+    tokens_availability = True
+    if PRACTICUM_TOKEN is None:
+        tokens_availability = False
+        logger.critical(f'{msg} PRACTICUM_TOKEN')
+    if TELEGRAM_TOKEN is None:
+        tokens_availability = False
+        logger.critical(f'{msg} TELEGRAM_TOKEN')
+    if TELEGRAM_CHAT_ID is None:
+        tokens_availability = False
+        logger.critical(f'{msg} TELEGRAM_CHAT_ID')
+    return tokens_availability
 
 
 def main():
     """Основная логика работы бота."""
-    try:
-        check_tokens()
-    except EnvVarsError:
-        logger.error("Завершение работы из-за отсутствия токенов.")
-        return  # Просто выходим из функции, не запуская цикл
+    if not check_tokens():
+        exit()
     # Создаем объект класса бота
     bot = TeleBot(token=TELEGRAM_TOKEN)
     homework_status = 'reviewing'
