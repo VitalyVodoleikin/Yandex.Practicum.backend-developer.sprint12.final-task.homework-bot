@@ -7,7 +7,7 @@ import time
 import requests
 
 from exceptions import (
-    EmptyDataError, EnvVarsError, RequestExceptError,
+    EmptyDataError, RequestExceptError,
     TelegramMsgError, UnknownStatusError,
     UnsuccessfulHTTPStatusCodeError)
 from telebot import TeleBot
