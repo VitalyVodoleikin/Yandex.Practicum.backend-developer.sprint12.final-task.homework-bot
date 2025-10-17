@@ -49,6 +49,22 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
 
+def check_tokens():
+    """Доступность токенов."""
+    msg = ('Не указана переменная окружения:')
+    tokens_availability = True
+    if PRACTICUM_TOKEN is None:
+        tokens_availability = False
+        logger.critical(f'{msg} PRACTICUM_TOKEN')
+    if TELEGRAM_TOKEN is None:
+        tokens_availability = False
+        logger.critical(f'{msg} TELEGRAM_TOKEN')
+    if TELEGRAM_CHAT_ID is None:
+        tokens_availability = False
+        logger.critical(f'{msg} TELEGRAM_CHAT_ID')
+    return tokens_availability
+
+
 def get_api_answer(endpoint):
     """Отправка запроса и получение данных с API."""
     current_timestamp = int(time.time())
@@ -126,22 +142,6 @@ def send_message(bot, msg):
         logger.error(f'Сообщение в Telegram не отправлено: {err}')
     except Exception as err:  # Ловим все возможные ошибки отправки
         logger.error(f'Ошибка при отправке сообщения: {err}')
-
-
-def check_tokens():
-    """Доступность токенов."""
-    msg = ('Не указана переменная окружения:')
-    tokens_availability = True
-    if PRACTICUM_TOKEN is None:
-        tokens_availability = False
-        logger.critical(f'{msg} PRACTICUM_TOKEN')
-    if TELEGRAM_TOKEN is None:
-        tokens_availability = False
-        logger.critical(f'{msg} TELEGRAM_TOKEN')
-    if TELEGRAM_CHAT_ID is None:
-        tokens_availability = False
-        logger.critical(f'{msg} TELEGRAM_CHAT_ID')
-    return tokens_availability
 
 
 def main():
