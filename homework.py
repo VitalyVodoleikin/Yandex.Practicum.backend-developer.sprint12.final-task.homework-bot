@@ -2,13 +2,12 @@ from http import HTTPStatus
 import json
 import logging
 import os
-import sys
 import time
 
 import requests
 
 from exceptions import (
-    EmptyDataError, RequestExceptError,
+    EmptyDataError, EnvVarsError, RequestExceptError,
     TelegramMsgError, UnknownStatusError,
     UnsuccessfulHTTPStatusCodeError)
 from telebot import TeleBot
@@ -50,16 +49,6 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
 
-def check_tokens(tokens_availability=True):
-    """Доступность токенов."""
-    for name, value in env_variables.items():
-        if value is None:
-            tokens_availability = False
-            logger.critical(
-                f'Не указана переменная {name}]')
-    return tokens_availability
-
-
 def get_api_answer(endpoint):
     """Отправка запроса и получение данных с API."""
     current_timestamp = int(time.time())
@@ -92,10 +81,12 @@ def check_response(response):
     ):
         raise TypeError('Данные под ключом "homeworks" не являются списком')
     if response.get('homeworks') is None:
-        msg = ('Получены некорректные данные.')
+        msg = 'Получены некорректные данные.'
         logger.error(msg)
         raise EmptyDataError(msg)
     if response['homeworks'] == []:
+        msg = 'Получен пустой ответ.'
+        logger.debug(msg)
         return {}
     status = response['homeworks'][0].get('status')
     if status not in HOMEWORK_VERDICTS:
@@ -133,33 +124,47 @@ def send_message(bot, msg):
         logger.debug(f'В Telegram отправлено сообщение: {msg}')
     except TelegramMsgError as err:
         logger.error(f'Сообщение в Telegram не отправлено: {err}')
+    except Exception as err:  # Ловим все возможные ошибки отправки
+        logger.error(f'Ошибка при отправке сообщения: {err}')
+
+
+def check_tokens():
+    """Доступность токенов."""
+    for name, value in env_variables.items():
+        if value is None:
+            msg = f'Не указана переменная {name}.'
+            logger.critical(msg)
+            # return False
+            raise EnvVarsError(msg)
+    return True
 
 
 def main():
     """Основная логика работы бота."""
-    if not check_tokens():
-        sys.exit()
+    try:
+        check_tokens()
+    except EnvVarsError:
+        logger.error("Завершение работы из-за отсутствия токенов.")
+        return  # Просто выходим из функции, не запуская цикл
     # Создаем объект класса бота
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
     homework_status = 'reviewing'
-    error_status = True
     while True:
         try:
-            response = get_api_answer(ENDPOINT, timestamp)
+            response = get_api_answer(ENDPOINT)
             homework = check_response(response)
             if homework and homework_status != homework['status']:
                 message = parse_status(homework)
-                send_message(bot, message)
                 homework_status = homework['status']
+                logger.info(f'Статус проверки изменился: {homework_status}')
+                send_message(bot, message)
             logger.info(
                 'Статус проверки не изменился. '
                 f'Повторная проверка через {RETRY_PERIOD / 60} минут.')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            if error_status:
-                error_status = False
-                send_message(bot, message)
+            send_message(bot, message)
+            logger.error(message)
         time.sleep(RETRY_PERIOD)
 
 

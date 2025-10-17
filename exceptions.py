@@ -21,3 +21,8 @@ class UnknownStatusError(Exception):
 class TelegramMsgError(Exception):
     """Ошибка отправки сообщения в Telegram."""
     pass
+
+
+class EnvVarsError(Exception):
+    """Отсутствие переменных окружения."""
+    pass
