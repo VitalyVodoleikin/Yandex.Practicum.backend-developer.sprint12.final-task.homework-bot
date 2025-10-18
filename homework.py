@@ -7,8 +7,10 @@ import time
 import requests
 
 from exceptions import (
-    EmptyDataError, RequestExceptError,
-    TelegramMsgError, UnknownStatusError,
+    CheckTokensError,
+    EmptyDataError,
+    RequestExceptError,
+    UnknownStatusError,
     UnsuccessfulHTTPStatusCodeError)
 from telebot import TeleBot
 from dotenv import load_dotenv
@@ -21,10 +23,12 @@ PRACTICUM_TOKEN = os.getenv('YANDEX_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-env_variables = {
-    'practicum_token': PRACTICUM_TOKEN,
-    'telegram_token': TELEGRAM_TOKEN,
-    'telegram_chat_id': TELEGRAM_CHAT_ID}
+
+# ENV_VARIABLES = {
+#     'practicum_token': PRACTICUM_TOKEN,
+#     'telegram_token': TELEGRAM_TOKEN,
+#     'telegram_chat_id': TELEGRAM_CHAT_ID}
+
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -44,18 +48,31 @@ logger.addHandler(logging.StreamHandler())
 
 def check_tokens():
     """Доступность токенов."""
-    msg = ('Не указана переменная окружения:')
-    tokens_availability = True
-    if PRACTICUM_TOKEN is None:
-        tokens_availability = False
-        logger.critical(f'{msg} PRACTICUM_TOKEN')
-    if TELEGRAM_TOKEN is None:
-        tokens_availability = False
-        logger.critical(f'{msg} TELEGRAM_TOKEN')
-    if TELEGRAM_CHAT_ID is None:
-        tokens_availability = False
-        logger.critical(f'{msg} TELEGRAM_CHAT_ID')
-    return tokens_availability
+    # msg = ('Не указана переменная окружения:')
+    # tokens_availability = True
+    # if PRACTICUM_TOKEN is None:
+    #     tokens_availability = False
+    #     logger.critical(f'{msg} PRACTICUM_TOKEN')
+    # if TELEGRAM_TOKEN is None:
+    #     tokens_availability = False
+    #     logger.critical(f'{msg} TELEGRAM_TOKEN')
+    # if TELEGRAM_CHAT_ID is None:
+    #     tokens_availability = False
+    #     logger.critical(f'{msg} TELEGRAM_CHAT_ID')
+    # return tokens_availability
+    env_variables = {
+        'practicum_token': PRACTICUM_TOKEN,
+        'telegram_token': TELEGRAM_TOKEN,
+        'telegram_chat_id': TELEGRAM_CHAT_ID}
+    env_variables_stack = []
+    for key, value in env_variables.items():
+        if value is None:
+            logger.critical(f'Не указана переменная окружения: {key}')
+            env_variables_stack.append(key)
+    if len(env_variables_stack) > 0:
+        logger.critical('Необходимо указать все переменные окружения!')
+        raise CheckTokensError(*env_variables_stack)
+    return True
 
 
 def get_api_answer(timestamp_label):
@@ -66,16 +83,13 @@ def get_api_answer(timestamp_label):
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         if response.status_code != HTTPStatus.OK:
             msg = 'Нет доступа к эндпоинту.'
-            # logger.error(msg)
             raise UnsuccessfulHTTPStatusCodeError(msg)
         return response.json()
     except requests.exceptions.RequestException as err:
         msg = f'Код ответа API: {err}'
-        # logger.error(msg)
         raise RequestExceptError(msg)
     except json.JSONDecodeError as err:
         msg = f'Код ответа API: {err}'
-        # logger.error(msg)
         raise json.JSONDecodeError(msg)
 
 
@@ -90,17 +104,7 @@ def check_response(response):
         raise TypeError('Данные под ключом "homeworks" не являются списком')
     if response.get('homeworks') is None:
         msg = 'Получены некорректные данные.'
-        # logger.error(msg)
         raise EmptyDataError(msg)
-    # if response['homeworks'] == []:
-    #     msg = 'Получен пустой ответ.'
-    #     logger.debug(msg)
-    #     return {}
-    # status = response['homeworks'][0].get('status')
-    # if status not in HOMEWORK_VERDICTS:
-    #     msg = f'Неизвестный статус проверки работы: {status}'
-    #     logger.error(msg)
-    #     raise UnknownStatusError(msg)
     return response['homeworks'][0]
 
 
@@ -110,17 +114,14 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     if status is None:
         msg = f'Ошибка значения status: {status}.'
-        # logger.error(msg)
         raise UnknownStatusError(msg)
     if homework_name is None:
         msg = f'Ошибка значения homework_name: {homework_name}.'
-        # logger.error(msg)
         raise UnknownStatusError(msg)
     try:
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError:
         msg = f'Неизвестный статус проверки: {status}.'
-        # logger.error(msg)
         raise UnknownStatusError(msg)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -130,8 +131,6 @@ def send_message(bot, msg):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, msg)
         logger.debug(f'В Telegram отправлено сообщение: {msg}')
-    # except TelegramMsgError as err:
-    #     logger.error(f'Сообщение в Telegram не отправлено: {err}')
     except Exception as err:  # Ловим все возможные ошибки отправки
         logger.error(f'Ошибка при отправке сообщения: {err}')
 
@@ -160,7 +159,8 @@ def main():
             message = f'Сбой в работе программы: {error}'
             send_message(bot, message)
             logger.error(message)
-        time.sleep(RETRY_PERIOD)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
