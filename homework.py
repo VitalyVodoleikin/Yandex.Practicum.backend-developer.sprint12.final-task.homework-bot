@@ -38,6 +38,10 @@ HOMEWORK_VERDICTS = {
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
+logger.addHandler(logging.FileHandler(
+    filename='bot_check_homework_logs.log',
+    mode='a',
+    encoding='utf-8'))
 
 
 def check_tokens():
@@ -61,35 +65,49 @@ def get_api_answer(timestamp_label):
     """Отправка запроса и получение данных с API."""
     current_timestamp = timestamp_label or int(time.time())
     payload = {'from_date': current_timestamp}
+    response_data = {
+        'endpoint': ENDPOINT,
+        'headers': HEADERS,
+        'params': payload}
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
-        if response.status_code != HTTPStatus.OK:
-            msg = 'Нет доступа к эндпоинту.'
-            raise UnsuccessfulHTTPStatusCodeError(msg)
-        return response.json()
+        logger.debug('Программа начала запрос '
+                     f'на адрес {response_data['endpoint']} '
+                     f'данные заголовка {response_data['headers']} '
+                     f'с параметрами {response_data['params']}.')
+        response = requests.get(
+            response_data['endpoint'],
+            headers=response_data['headers'],
+            params=response_data['params'])
     except requests.exceptions.RequestException as err:
         msg = f'Код ответа API: {err}'
         raise RequestExceptError(msg)
     except json.JSONDecodeError as err:
         msg = f'Код ответа API: {err}'
         raise json.JSONDecodeError(msg)
+    if response.status_code != HTTPStatus.OK:
+        msg = ('Статус-код ответа отличается от успешного: '
+               f'{response.status_code}.')
+        raise UnsuccessfulHTTPStatusCodeError(msg)
+    return response.json()
 
 
 def check_response(response):
     """Проверка данных запроса."""
+    if 'homeworks' in response:
+        response_homeworks = response.get('homeworks')
     if not isinstance(response, dict):
         raise TypeError(
             'Ответ API не имеет структуры словаря. '
             f'Получен тип данных {type(response)}.')
     if 'homeworks' not in response or not isinstance(
-        response['homeworks'],
+        response_homeworks,
         list
     ):
-        raise TypeError('Данные под ключом "homeworks" не являются списком')
-    if response.get('homeworks') is None:
+        raise TypeError('Данные под ключом "homeworks" не являются списком.')
+    if response_homeworks is None:
         msg = 'Получены некорректные данные.'
         raise EmptyDataError(msg)
-    return response['homeworks'][0]
+    return response_homeworks[0]
 
 
 def parse_status(homework):
@@ -184,6 +202,9 @@ if __name__ == '__main__':
 # 1
 # 2
 # 3
+# 4
+# 5
+# 6
 # ----------
 
 
