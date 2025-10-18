@@ -61,22 +61,21 @@ def check_tokens():
 def get_api_answer(timestamp_label):
     """Отправка запроса и получение данных с API."""
     current_timestamp = timestamp_label or int(time.time())
-    headers = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
     payload = {'from_date': current_timestamp}
     try:
-        response = requests.get(ENDPOINT, headers=headers, params=payload)
+        response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
         if response.status_code != HTTPStatus.OK:
             msg = 'Нет доступа к эндпоинту.'
-            logger.error(msg)
+            # logger.error(msg)
             raise UnsuccessfulHTTPStatusCodeError(msg)
         return response.json()
     except requests.exceptions.RequestException as err:
         msg = f'Код ответа API: {err}'
-        logger.error(msg)
+        # logger.error(msg)
         raise RequestExceptError(msg)
     except json.JSONDecodeError as err:
         msg = f'Код ответа API: {err}'
-        logger.error(msg)
+        # logger.error(msg)
         raise json.JSONDecodeError(msg)
 
 
@@ -91,17 +90,17 @@ def check_response(response):
         raise TypeError('Данные под ключом "homeworks" не являются списком')
     if response.get('homeworks') is None:
         msg = 'Получены некорректные данные.'
-        logger.error(msg)
+        # logger.error(msg)
         raise EmptyDataError(msg)
-    if response['homeworks'] == []:
-        msg = 'Получен пустой ответ.'
-        logger.debug(msg)
-        return {}
-    status = response['homeworks'][0].get('status')
-    if status not in HOMEWORK_VERDICTS:
-        msg = f'Неизвестный статус проверки работы: {status}'
-        logger.error(msg)
-        raise UnknownStatusError(msg)
+    # if response['homeworks'] == []:
+    #     msg = 'Получен пустой ответ.'
+    #     logger.debug(msg)
+    #     return {}
+    # status = response['homeworks'][0].get('status')
+    # if status not in HOMEWORK_VERDICTS:
+    #     msg = f'Неизвестный статус проверки работы: {status}'
+    #     logger.error(msg)
+    #     raise UnknownStatusError(msg)
     return response['homeworks'][0]
 
 
@@ -111,17 +110,17 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     if status is None:
         msg = f'Ошибка значения status: {status}.'
-        logger.error(msg)
+        # logger.error(msg)
         raise UnknownStatusError(msg)
     if homework_name is None:
         msg = f'Ошибка значения homework_name: {homework_name}.'
-        logger.error(msg)
+        # logger.error(msg)
         raise UnknownStatusError(msg)
     try:
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError:
         msg = f'Неизвестный статус проверки: {status}.'
-        logger.error(msg)
+        # logger.error(msg)
         raise UnknownStatusError(msg)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -131,8 +130,8 @@ def send_message(bot, msg):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, msg)
         logger.debug(f'В Telegram отправлено сообщение: {msg}')
-    except TelegramMsgError as err:
-        logger.error(f'Сообщение в Telegram не отправлено: {err}')
+    # except TelegramMsgError as err:
+    #     logger.error(f'Сообщение в Telegram не отправлено: {err}')
     except Exception as err:  # Ловим все возможные ошибки отправки
         logger.error(f'Ошибка при отправке сообщения: {err}')
 
