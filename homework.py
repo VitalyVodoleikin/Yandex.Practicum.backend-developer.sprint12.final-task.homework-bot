@@ -12,7 +12,7 @@ from exceptions import (
     RequestExceptError,
     UnknownStatusError,
     UnsuccessfulHTTPStatusCodeError)
-from telebot import TeleBot
+import telebot
 from dotenv import load_dotenv
 
 
@@ -22,12 +22,6 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('YANDEX_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-
-
-# ENV_VARIABLES = {
-#     'practicum_token': PRACTICUM_TOKEN,
-#     'telegram_token': TELEGRAM_TOKEN,
-#     'telegram_chat_id': TELEGRAM_CHAT_ID}
 
 
 RETRY_PERIOD = 600
@@ -48,18 +42,6 @@ logger.addHandler(logging.StreamHandler())
 
 def check_tokens():
     """Доступность токенов."""
-    # msg = ('Не указана переменная окружения:')
-    # tokens_availability = True
-    # if PRACTICUM_TOKEN is None:
-    #     tokens_availability = False
-    #     logger.critical(f'{msg} PRACTICUM_TOKEN')
-    # if TELEGRAM_TOKEN is None:
-    #     tokens_availability = False
-    #     logger.critical(f'{msg} TELEGRAM_TOKEN')
-    # if TELEGRAM_CHAT_ID is None:
-    #     tokens_availability = False
-    #     logger.critical(f'{msg} TELEGRAM_CHAT_ID')
-    # return tokens_availability
     env_variables = {
         'practicum_token': PRACTICUM_TOKEN,
         'telegram_token': TELEGRAM_TOKEN,
@@ -96,7 +78,9 @@ def get_api_answer(timestamp_label):
 def check_response(response):
     """Проверка данных запроса."""
     if not isinstance(response, dict):
-        raise TypeError('Ответ API не имеет структуры словаря')
+        raise TypeError(
+            'Ответ API не имеет структуры словаря. '
+            f'Получен тип данных {type(response)}.')
     if 'homeworks' not in response or not isinstance(
         response['homeworks'],
         list
@@ -129,10 +113,16 @@ def parse_status(homework):
 def send_message(bot, msg):
     """Отправка сообщения в Телеграм."""
     try:
+        logger.debug(f'Началась отправка сообщения в Telegram: {msg}')
         bot.send_message(TELEGRAM_CHAT_ID, msg)
         logger.debug(f'В Telegram отправлено сообщение: {msg}')
-    except Exception as err:  # Ловим все возможные ошибки отправки
-        logger.error(f'Ошибка при отправке сообщения: {err}')
+    # except Exception as err:  # Ловим все возможные ошибки отправки
+    #     logger.error(f'Ошибка при отправке сообщения: {err}')
+    except (telebot.apihelper.ApiException,
+            requests.exceptions.RequestException) as err:
+        logger.error(
+            f'Ошибка при отправке сообщения: {err}. '
+            f'(Тип ошибки: {type(err).__name__})')
 
 
 def main():
@@ -140,7 +130,7 @@ def main():
     if not check_tokens():
         exit()
     # Создаем объект класса бота
-    bot = TeleBot(token=TELEGRAM_TOKEN)
+    bot = telebot.TeleBot(token=TELEGRAM_TOKEN)
     homework_status = 'reviewing'
     timestamp_label = int(time.time())
     while True:
@@ -190,7 +180,10 @@ if __name__ == '__main__':
 
 
 
-
+# Пока все нормально
+# 1
+# 2
+# 3
 # ----------
 
 
