@@ -57,40 +57,9 @@ def check_tokens():
     if len(env_variables_stack):
         logger.critical('Необходимо указать все переменные окружения!')
         raise CheckTokensError(*env_variables_stack)
-    # return True
 
 
-def get_api_answer(timestamp_label):
-    """Отправка запроса и получение данных с API."""
-    current_timestamp = timestamp_label or int(time.time())
-    payload = {'from_date': current_timestamp}
-    response_data = {'url': ENDPOINT,
-                     'headers': HEADERS,
-                     'params': payload}
-    try:
-        # logger.debug('Программа начала запрос '
-        #              f'на адрес {response_data['url']} '
-        #              f'данные заголовка {response_data['headers']} '
-        #              f'с параметрами {response_data['params']}.')
-        logger.debug(str.format(('Программа начала запрос '
-                                 'на адрес {url} '
-                                 'данные заголовка {headers} '
-                                 'с параметрами {params}.'), **response_data))
-        # response = requests.get(response_data['url'],
-        #                         headers=response_data['headers'],
-        #                         params=response_data['params'])
-        response = requests.get(**response_data)
-    except requests.exceptions.RequestException as err:
-        msg = f'Код ответа API: {err}'
-        raise RequestExceptError(msg)
-    # except json.JSONDecodeError as err:
-    #     msg = f'Код ответа API: {err}'
-    #     raise json.JSONDecodeError(msg)
-    if response.status_code != HTTPStatus.OK:
-        msg = ('Статус-код ответа отличается от успешного: '
-               f'{response.status_code}.')
-        raise UnsuccessfulHTTPStatusCodeError(msg)
-    return response.json()
+
 
 
 def check_response(response):
@@ -140,13 +109,40 @@ def send_message(bot, msg):
     return True
 
 
+def get_api_answer(timestamp_label):
+    """Отправка запроса и получение данных с API."""
+    # current_timestamp = timestamp_label or int(time.time())
+    # payload = {'from_date': current_timestamp}
+
+
+    # current_timestamp = timestamp_label or int(time.time())
+    payload = {'from_date': timestamp_label}
+    response_data = {'url': ENDPOINT,
+                     'headers': HEADERS,
+                     'params': payload}
+    try:
+        logger.debug(str.format(('Программа начала запрос '
+                                 'на адрес {url} '
+                                 'данные заголовка {headers} '
+                                 'с параметрами {params}.'), **response_data))
+        response = requests.get(**response_data)
+    except requests.exceptions.RequestException as err:
+        msg = f'Код ответа API: {err}'
+        raise RequestExceptError(msg)
+    if response.status_code != HTTPStatus.OK:
+        msg = ('Статус-код ответа отличается от успешного: '
+               f'{response.status_code}.')
+        raise UnsuccessfulHTTPStatusCodeError(msg)
+    return response.json()
+
+
 def main():
     """Основная логика работы бота."""
     check_tokens()
     # Создаем объект класса бота
     bot = telebot.TeleBot(token=TELEGRAM_TOKEN)
-    # homework_status = 'reviewing'
     timestamp_label = int(time.time())
+    last_timestamp_label = None
     last_error = None
     while True:
         try:
@@ -157,17 +153,15 @@ def main():
                 homework_status = homework['status']
                 logger.info(f'Статус проверки изменился: {homework_status}')
                 if send_message(bot, message):
-                    if response.get('current_date'):
-                        timestamp_label = response['current_date']
-                    # else:
-                    #     raise Exception
+                    if response.get('from_date', last_timestamp_label):
+                        last_timestamp_label = timestamp_label
+                        timestamp_label = response['from_date']
             logger.info(
                 'Статус проверки не изменился. '
                 f'Повторная проверка через {RETRY_PERIOD / 60} минут.')
             last_error = None
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            # if len(last_error) > 0:
             if last_error != error:
                 send_message(bot, message)
                 logger.error(message)
