@@ -92,7 +92,7 @@ def check_response(response):
         raise TypeError('Данные под ключом "homeworks" не являются списком.'
                         f'Ключ "homeworks" содержит данные типа {
                             type(response_homeworks)}.')
-    return response_homeworks[0]
+    return response_homeworks
 
 
 def parse_status(homework):
@@ -140,6 +140,7 @@ def main():
             response = get_api_answer(timestamp_label)
             homework = check_response(response)
             if homework:
+                homework = homework[0]
                 message = parse_status(homework)
                 homework_status = homework['status']
                 logger.info(f'Статус проверки изменился: {homework_status}')
