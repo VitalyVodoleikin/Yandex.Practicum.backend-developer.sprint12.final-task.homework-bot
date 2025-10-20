@@ -54,33 +54,38 @@ def check_tokens():
         if value is None:
             logger.critical(f'Не указана переменная окружения: {key}')
             env_variables_stack.append(key)
-    if len(env_variables_stack) > 0:
+    if len(env_variables_stack):
         logger.critical('Необходимо указать все переменные окружения!')
         raise CheckTokensError(*env_variables_stack)
-    return True
+    # return True
 
 
 def get_api_answer(timestamp_label):
     """Отправка запроса и получение данных с API."""
     current_timestamp = timestamp_label or int(time.time())
     payload = {'from_date': current_timestamp}
-    response_data = {'endpoint': ENDPOINT,
+    response_data = {'url': ENDPOINT,
                      'headers': HEADERS,
                      'params': payload}
     try:
-        logger.debug('Программа начала запрос '
-                     f'на адрес {response_data['endpoint']} '
-                     f'данные заголовка {response_data['headers']} '
-                     f'с параметрами {response_data['params']}.')
-        response = requests.get(response_data['endpoint'],
-                                headers=response_data['headers'],
-                                params=response_data['params'])
+        # logger.debug('Программа начала запрос '
+        #              f'на адрес {response_data['url']} '
+        #              f'данные заголовка {response_data['headers']} '
+        #              f'с параметрами {response_data['params']}.')
+        logger.debug(str.format(('Программа начала запрос '
+                                 'на адрес {url} '
+                                 'данные заголовка {headers} '
+                                 'с параметрами {params}.'), **response_data))
+        # response = requests.get(response_data['url'],
+        #                         headers=response_data['headers'],
+        #                         params=response_data['params'])
+        response = requests.get(**response_data)
     except requests.exceptions.RequestException as err:
         msg = f'Код ответа API: {err}'
         raise RequestExceptError(msg)
-    except json.JSONDecodeError as err:
-        msg = f'Код ответа API: {err}'
-        raise json.JSONDecodeError(msg)
+    # except json.JSONDecodeError as err:
+    #     msg = f'Код ответа API: {err}'
+    #     raise json.JSONDecodeError(msg)
     if response.status_code != HTTPStatus.OK:
         msg = ('Статус-код ответа отличается от успешного: '
                f'{response.status_code}.')
@@ -90,16 +95,16 @@ def get_api_answer(timestamp_label):
 
 def check_response(response):
     """Проверка данных запроса."""
-    if 'homeworks' in response:
-        response_homeworks = response.get('homeworks')
     if not isinstance(response, dict):
         raise TypeError('Ответ API не имеет структуры словаря. '
                         f'Получен тип данных {type(response)}.')
-    if 'homeworks' not in response or not isinstance(response_homeworks, list):
-        raise TypeError('Данные под ключом "homeworks" не являются списком.')
-    if response_homeworks is None:
-        msg = 'Получены некорректные данные.'
-        raise EmptyDataError(msg)
+    if 'homeworks' not in response:
+        raise TypeError('В ответе нет ключа "homeworks".')
+    response_homeworks = response.get('homeworks')
+    if not isinstance(response_homeworks, list):
+        raise TypeError('Данные под ключом "homeworks" не являются списком.'
+                        f'Ключ "homeworks" содержит данные типа {
+                            type(response_homeworks)}.')
     return response_homeworks[0]
 
 
@@ -140,9 +145,9 @@ def main():
     check_tokens()
     # Создаем объект класса бота
     bot = telebot.TeleBot(token=TELEGRAM_TOKEN)
-    homework_status = 'reviewing'
+    # homework_status = 'reviewing'
     timestamp_label = int(time.time())
-    errors_list = []
+    last_error = None
     while True:
         try:
             response = get_api_answer(timestamp_label)
@@ -154,19 +159,19 @@ def main():
                 if send_message(bot, message):
                     if response.get('current_date'):
                         timestamp_label = response['current_date']
-                    else:
-                        raise Exception
+                    # else:
+                    #     raise Exception
             logger.info(
                 'Статус проверки не изменился. '
                 f'Повторная проверка через {RETRY_PERIOD / 60} минут.')
-            errors_list.clear()
+            last_error = None
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            if len(errors_list) > 0:
-                if errors_list[0] != error:
-                    send_message(bot, message)
-                    logger.error(message)
-            errors_list.append[error]
+            # if len(last_error) > 0:
+            if last_error != error:
+                send_message(bot, message)
+                logger.error(message)
+            last_error = error
         finally:
             time.sleep(RETRY_PERIOD)
 
