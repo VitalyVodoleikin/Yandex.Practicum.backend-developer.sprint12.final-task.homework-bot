@@ -1,16 +1,15 @@
-import json
 import logging
 import os
+import sys
 import time
 from http import HTTPStatus
 
 import requests
-from dotenv import load_dotenv
 import telebot
+from dotenv import load_dotenv
 
 from exceptions import (
     CheckTokensError,
-    EmptyDataError,
     RequestExceptError,
     UnknownStatusError,
     UnsuccessfulHTTPStatusCodeError)
@@ -37,7 +36,7 @@ HOMEWORK_VERDICTS = {
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
+logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.addHandler(logging.FileHandler(
     filename='bot_check_homework_logs.log',
     mode='a',
@@ -59,7 +58,26 @@ def check_tokens():
         raise CheckTokensError(*env_variables_stack)
 
 
-
+def get_api_answer(timestamp_label):
+    """Отправка запроса и получение данных с API."""
+    payload = {'from_date': timestamp_label}
+    response_data = {'url': ENDPOINT,
+                     'headers': HEADERS,
+                     'params': payload}
+    try:
+        logger.debug(str.format(('Программа начала запрос '
+                                 'на адрес {url} '
+                                 'данные заголовка {headers} '
+                                 'с параметрами {params}.'), **response_data))
+        response = requests.get(**response_data)
+    except requests.exceptions.RequestException as err:
+        msg = f'Код ответа API: {err}'
+        raise RequestExceptError(msg)
+    if response.status_code != HTTPStatus.OK:
+        msg = ('Статус-код ответа отличается от успешного: '
+               f'{response.status_code}.')
+        raise UnsuccessfulHTTPStatusCodeError(msg)
+    return response.json()
 
 
 def check_response(response):
@@ -107,33 +125,6 @@ def send_message(bot, msg):
                      f'(Тип ошибки: {type(err).__name__})')
         return False
     return True
-
-
-def get_api_answer(timestamp_label):
-    """Отправка запроса и получение данных с API."""
-    # current_timestamp = timestamp_label or int(time.time())
-    # payload = {'from_date': current_timestamp}
-
-
-    # current_timestamp = timestamp_label or int(time.time())
-    payload = {'from_date': timestamp_label}
-    response_data = {'url': ENDPOINT,
-                     'headers': HEADERS,
-                     'params': payload}
-    try:
-        logger.debug(str.format(('Программа начала запрос '
-                                 'на адрес {url} '
-                                 'данные заголовка {headers} '
-                                 'с параметрами {params}.'), **response_data))
-        response = requests.get(**response_data)
-    except requests.exceptions.RequestException as err:
-        msg = f'Код ответа API: {err}'
-        raise RequestExceptError(msg)
-    if response.status_code != HTTPStatus.OK:
-        msg = ('Статус-код ответа отличается от успешного: '
-               f'{response.status_code}.')
-        raise UnsuccessfulHTTPStatusCodeError(msg)
-    return response.json()
 
 
 def main():

@@ -2,10 +2,6 @@ class CheckTokensError(Exception):
     """Ошибка при указании токенов."""
 
 
-class EmptyDataError(Exception):
-    """Пустой словарь или список."""
-
-
 class RequestExceptError(Exception):
     """Ошибка запроса."""
 
