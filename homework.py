@@ -53,7 +53,7 @@ def check_tokens():
         if value is None:
             logger.critical(f'Не указана переменная окружения: {key}')
             env_variables_stack.append(key)
-    if len(env_variables_stack):
+    if env_variables_stack:
         logger.critical('Необходимо указать все переменные окружения!')
         raise CheckTokensError(*env_variables_stack)
 
@@ -145,9 +145,7 @@ def main():
                 homework_status = homework['status']
                 logger.info(f'Статус проверки изменился: {homework_status}')
                 if send_message(bot, message):
-                    if response.get('from_date', last_timestamp_label):
-                        last_timestamp_label = timestamp_label
-                        timestamp_label = response['from_date']
+                    response.get('current_date', last_timestamp_label)
             logger.info(
                 'Статус проверки не изменился. '
                 f'Повторная проверка через {RETRY_PERIOD / 60} минут.')
